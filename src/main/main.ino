@@ -1,11 +1,13 @@
 #include "DHT.h"
 #include <LiquidCrystal.h>
+#include <Stepper.h>
 #define DHT11_PIN 53
 
 //
 DHT dht11(DHT11_PIN, DHT11);
 const int RS = 33, EN = 35, D4 = 37, D5 = 39, D6 = 41, D7 = 43;
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
+Stepper stepper(32, 46, 50, 48, 52);
 //
 
 enum State {
@@ -34,6 +36,9 @@ float currentHumidity = 0;
 float currentWaterLevel = 0;
 float thresholdWaterLevel = 0;
 
+bool startPressed = false;
+bool stopPressed = false;
+bool resetPressed = false;
 
 void setup(){
     initUART(9600);
@@ -41,11 +46,10 @@ void setup(){
     // initLEDS();
     // initDHT11();
     // initLCD();
-
     // initWaterLevel();
-    
     // initFanMotor();
-    // initStepperMotor();
+
+    initStepperMotor();
 }
 
 void loop(){
@@ -58,6 +62,10 @@ void loop(){
     // testLEDS();
     // testDHT11();
     // testLCD();
+    // testWaterLevel();
+    // testFan();
+    testStepper();
+
 }
 
 // UART (Serial Monitor)
@@ -105,7 +113,9 @@ void floatToString(float num, char* str, int precision){
     }
 
     str[i] = '\0';
-
+    if (precision == 0){
+        return;
+    }
     str[i++] = '.';
 
     for (int j = 0; j < precision; j++){
@@ -138,6 +148,7 @@ RESET PIN 26
 // LEDS
 void initLEDS(){
     DDRA |= (1 << RED) | (1 << YELLOW) | (1 << GREEN) | (1 << BLUE);
+    PORTA &= ~(1 << RED) & ~(1 << YELLOW) & ~(1 << GREEN) & ~(1 << BLUE);
 }
 void writeLED(bool state, LED color){
     if (state){
@@ -196,16 +207,70 @@ K GND
 */
 
 // WATER LEVEL
-void initWaterLevel(){}
-float readWaterLevel(){}
+void initWaterLevel(){
+    ADCSRA |= 0b10000000;
+    ADCSRA &= 0b11011111;
+    ADCSRA &= 0b11110111;
+    ADCSRA &= 0b11111000;
+    ADCSRB &= 0b11110111;
+    ADCSRB &= 0b11111000;
+    ADMUX &= 0b01111111;
+    ADMUX |= 0b01000000;
+    ADMUX &= 0b11011111;
+    ADMUX &= 0b11100000;
+}
+float readWaterLevel()
+{
+    ADMUX  &= 0b11100000;
+    ADCSRB &= 0b11110111;
+    ADCSRB |= 0b00001000;
+    ADMUX  += 7;
+    ADCSRA |= 0x40;
+    while((ADCSRA & 0x40) != 0);
+    unsigned int result = ADCL;
+    result |= (ADCH << 8);
+    return result;
+}
+/*
++ 5V
+- GND
+S PIN A15
+*/
 
 // FAN
-void initFanMotor(){}
-void startFan(){}
-void stopFan(){}
+void initFanMotor(){
+    DDRA |= (1 << PA6);
+    PORTA &= ~(1 << PA6);
+}
+void startFan(){
+    PORTA |= (1 << PA6);
+}
+void stopFan(){
+    PORTA &= ~(1 << PA6);
+}
+/*
+VSS ARDUINO 5V
+IN4 PIN 28
+OUT4 MOTOR POSITIVE
+GND PSU GND
+OUT3 MOTOR GND
+*/
 
 // VENT
-void initStepperMotor(){}
+void initStepperMotor(){
+    // Buttons for controlling vent direction
+    DDRL &= ~(1 << PL7) & ~(1 << PL5);
+    PORTL |= (1 << PL7) | (1 << PL5);
+
+    stepper.setSpeed(1000);
+}
+/*
+1N1 PIN 46
+1N2 PIN 48
+1N3 PIN 50
+1N4 PIN52
+BUTTONS PIN 42, PIN 44
+*/
 
 // PROGRAM HELPERS
 void initParameters(){
@@ -340,7 +405,34 @@ void testLCD(){
         lcd.clear();
     }
 }
-void testWaterLevel(){}
-void testFan(){}
-void testStepper(){}
+void testWaterLevel(){
+    char buffer[4];
+    while(true){
+        U0putstring("Current Water Level: ");
+        floatToString(readWaterLevel(), buffer, 0);
+        U0putstring(buffer);
+        U0putchar('\n');
+        delay(100);
+    }
+}
+void testFan(){
+    while(true){
+        startFan();
+        delay(4000);
+        stopFan();
+        delay(4000);
+    }
+}
+void testStepper(){
+    while(true){
+        if (!(PINL & (1 << PL5))){
+            stepper.step(256);
+        }
+        if (!(PINL & (1 << PL7))){
+            stepper.step(-256);
+        }
+    }
+}
 
+// 1 IMPLEMENT ISR FOR BUTTONS
+// 2 IMPLEMENT MAIN FUNCTIONALITY
