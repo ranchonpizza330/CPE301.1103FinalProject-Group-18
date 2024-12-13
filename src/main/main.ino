@@ -1,6 +1,7 @@
 #include "DHT.h"
 #include <LiquidCrystal.h>
 #include <Stepper.h>
+#include <Stepper.h>
 #define DHT11_PIN 53
 
 //
@@ -30,14 +31,6 @@ float currentHumidity = 0;
 float currentWaterLevel = 0;
 float thresholdWaterLevel = 0;
 
-volatile bool startPressed = false;
-volatile bool stopPressed = false;
-volatile bool resetPressed = false;
-
-volatile bool ventLeftPressed = false;
-volatile bool ventRightPressed = false;
-
-bool isTriggered = false;
 
 void setup(){
     initUART(9600);
@@ -244,40 +237,12 @@ S PIN A15
 */
 
 // FAN
-void initFanMotor(){
-    DDRA |= (1 << PA6);
-    PORTA &= ~(1 << PA6);
-}
-void startFan(){
-    PORTA |= (1 << PA6);
-}
-void stopFan(){
-    PORTA &= ~(1 << PA6);
-}
-/*
-VSS ARDUINO 5V
-IN4 PIN 28
-OUT4 MOTOR POSITIVE
-GND PSU GND
-OUT3 MOTOR GND
-ARDUINO GND TO PSU GND
-*/
+void initFanMotor(){}
+void startFan(){}
+void stopFan(){}
 
 // VENT
-void initStepperMotor(){
-    // Buttons for controlling vent direction
-    DDRL &= ~(1 << PL7) & ~(1 << PL5);
-    PORTL |= (1 << PL7) | (1 << PL5);
-
-    stepper.setSpeed(1000);
-}
-/*
-1N1 PIN 46
-1N2 PIN 48
-1N3 PIN 50
-1N4 PIN 52
-BUTTONS PIN 42, PIN 44
-*/
+void initStepperMotor(){}
 
 // PROGRAM HELPERS
 void initParameters(){
@@ -415,31 +380,7 @@ void testLCD(){
         lcd.clear();
     }
 }
-void testWaterLevel(){
-    char buffer[4];
-    while(true){
-        U0putstring("Current Water Level: ");
-        floatToString(readWaterLevel(), buffer, 0);
-        U0putstring(buffer);
-        U0putchar('\n');
-        delay(100);
-    }
-}
-void testFan(){
-    while(true){
-        startFan();
-        delay(4000);
-        stopFan();
-        delay(4000);
-    }
-}
-void testStepper(){
-    while(true){
-        if (!(PINL & (1 << PL5))){
-            stepper.step(256);
-        }
-        if (!(PINL & (1 << PL7))){
-            stepper.step(-256);
-        }
-    }
-}
+void testWaterLevel(){}
+void testFan(){}
+void testStepper(){}
+
