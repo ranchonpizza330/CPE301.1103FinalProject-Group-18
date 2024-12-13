@@ -1,6 +1,8 @@
 #include "DHT.h"
 #include <LiquidCrystal.h>
 #include <Stepper.h>
+#include <Wire.h>
+#include <RTClib.h>
 #define DHT11_PIN 53
 
 //
@@ -8,6 +10,7 @@ DHT dht11(DHT11_PIN, DHT11);
 const int RS = 33, EN = 35, D4 = 37, D5 = 39, D6 = 41, D7 = 43;
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 Stepper stepper(32, 46, 50, 48, 52);
+RTC_DS1307 rtc;
 //
 
 enum State {
@@ -44,8 +47,8 @@ void setup(){
     // initLCD();
     // initWaterLevel();
     // initFanMotor();
-
-    initStepperMotor();
+    // initStepperMotor();
+    initClock();
 }
 
 void loop(){
@@ -59,7 +62,8 @@ void loop(){
     // testLCD();
     // testWaterLevel();
     // testFan();
-    testStepper();
+    // testStepper();
+    testClock();
 
 }
 
@@ -276,6 +280,33 @@ void initStepperMotor(){
 BUTTONS PIN 42, PIN 44
 */
 
+// CLOCK
+void initClock(){
+    rtc.begin();
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+}
+void displayTime(){
+    char buffer[4];
+    DateTime now = rtc.now();
+    floatToString(now.year(), buffer, 0);
+    U0putstring(buffer);
+    U0putchar('/');
+    floatToString(now.month(), buffer, 0);
+    U0putstring(buffer);
+    U0putchar('/');
+    floatToString(now.day(), buffer, 0);
+    U0putstring(buffer);
+    U0putchar(' ');
+    floatToString(now.hour(), buffer, 0);
+    U0putstring(buffer);
+    U0putchar(':');
+    floatToString(now.minute(), buffer, 0);
+    U0putstring(buffer);
+    U0putchar(':');
+    floatToString(now.second(), buffer, 0);
+    U0putstring(buffer);
+    U0putchar(' ');
+}
 // PROGRAM HELPERS
 void initParameters(){
     currentTemperature = readTemperature();
@@ -438,6 +469,13 @@ void testStepper(){
         if (!(PINL & (1 << PL7))){
             stepper.step(-256);
         }
+    }
+}
+void testClock(){
+    while(true){
+        displayTime();
+        U0putchar('\n');
+        delay(1000);
     }
 }
 
