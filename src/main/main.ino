@@ -24,21 +24,17 @@ enum LED {
     BLUE = PA7 // pin 29
 };
 
-enum BUTTON {
-    STOP = PA0, // pin 22
-    START = PA2, // pin 24
-    RESET = PA4 // pin 26
-};
-
 State currentState = DISABLED;
 float currentTemperature = 0;
 float currentHumidity = 0;
 float currentWaterLevel = 0;
 float thresholdWaterLevel = 0;
 
-bool startPressed = false;
-bool stopPressed = false;
-bool resetPressed = false;
+volatile bool startPressed = false;
+volatile bool stopPressed = false;
+volatile bool resetPressed = false;
+
+bool isTriggered = false;
 
 void setup(){
     initUART(9600);
@@ -53,7 +49,6 @@ void setup(){
 }
 
 void loop(){
-    
     // mainFunctionality();
 
     // // testing section
@@ -130,19 +125,27 @@ void floatToString(float num, char* str, int precision){
 
 // BUTTONS 
 void initButtons(){
-    DDRA &= ~(1 << STOP) & ~(1 << START) & ~(1 << RESET);
-    PORTA |= (1 << STOP) | (1 << START) | (1 << RESET);
+  // Set up Digital Pin 19 (PD2) as input with pull-up resistor
+  DDRD &= ~(1 << PD2) & ~(1 << PD1) & ~(1 << PD0); // Set PD2 as input
+  PORTD |= (1 << PD2) | (1 << PD1) | (1 << PD0); // Enable pull-up resistor on PD2
+
+  // Enable external interrupt
+  EIMSK |= (1 << INT2) | (1 << INT1) | (1 << INT0);  // Enable INT
+  EICRA |= (1 << ISC21) | (1 << ISC11) | (1 << ISC01); // Falling edge trigger
 }
-bool readButton(BUTTON type){
-    if (!(PINA & (1 << type))) {
-        return true;
-    }
-    return false;
+ISR(INT2_vect) {
+  startPressed = true;
+}
+ISR(INT1_vect) {
+  stopPressed = true;
+}
+ISR(INT0_vect) {
+  resetPressed = true;
 }
 /*
-STOP PIN 22
-START PIN 24
-RESET PIN 26
+START PIN 21
+STOP PIN 20
+RESET PIN 19
 */
 
 // LEDS
@@ -254,6 +257,7 @@ IN4 PIN 28
 OUT4 MOTOR POSITIVE
 GND PSU GND
 OUT3 MOTOR GND
+ARDUINO GND TO PSU GND
 */
 
 // VENT
@@ -268,7 +272,7 @@ void initStepperMotor(){
 1N1 PIN 46
 1N2 PIN 48
 1N3 PIN 50
-1N4 PIN52
+1N4 PIN 52
 BUTTONS PIN 42, PIN 44
 */
 
@@ -331,7 +335,7 @@ void testButtons(){
             U0putchar('\n');
         }
         U0putstring("STOP button: ");
-        if (readButton(STOP)){
+        if (startPressed){
             U0putstring("PRESSED");
         }
         else{
@@ -339,7 +343,7 @@ void testButtons(){
         }
         U0putchar('\n');
         U0putstring("START button: ");
-        if (readButton(START)){
+        if (stopPressed){
             U0putstring("PRESSED");
         }
         else{
@@ -347,12 +351,15 @@ void testButtons(){
         }
         U0putchar('\n');
         U0putstring("RESET button: ");
-        if (readButton(RESET)){
+        if (resetPressed){
             U0putstring("PRESSED");
         }
         else{
             U0putstring("unpressed");
         }
+        startPressed = false;
+        stopPressed = false;
+        resetPressed = false;
         U0putchar('\n');
         delay(1000);
     }
