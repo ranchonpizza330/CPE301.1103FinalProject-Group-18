@@ -1,7 +1,6 @@
 #include "DHT.h"
 #include <LiquidCrystal.h>
 #include <Stepper.h>
-#include <Wire.h>
 #include <RTClib.h>
 #define DHT11_PIN 53
 
@@ -307,6 +306,8 @@ void displayTime(){
     U0putstring(buffer);
     U0putchar(' ');
 }
+
+
 // PROGRAM HELPERS
 void initParameters(){
     currentTemperature = readTemperature();
