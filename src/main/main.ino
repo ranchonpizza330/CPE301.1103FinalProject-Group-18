@@ -381,8 +381,8 @@ void preStateFunctionality(){
         return;
     }
     now = rtc.now();
-    if (now.second() != lastMinute){
-        lastMinute = now.second();
+    if (now.minute() != lastMinute){
+        lastMinute = now.minute();
         currentTemperature = readTemperature();
         currentHumidity = readHumidity();
         currentWaterLevel = readWaterLevel();
@@ -649,7 +649,7 @@ void testClock(){
 // 2 IMPLEMENT MAIN FUNCTIONALITY
 
 void setup(){
-    Serial.begin(9600);
+    // Serial.begin(9600);
     initUART(9600);
     initButtons();
     initLEDS();
