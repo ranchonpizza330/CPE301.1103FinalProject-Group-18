@@ -26,45 +26,26 @@ enum LED {
     BLUE = PA7 // pin 29
 };
 
+enum BUTTON {
+    START = INT3,
+    STOP = INT4,
+    RESET = INT5
+};
+
 State currentState = DISABLED;
 float currentTemperature = 0;
 float currentHumidity = 0;
 float currentWaterLevel = 0;
-float thresholdWaterLevel = 0;
+float waterLevelThreshold = 0;
+
+float tempThreshold = 20.6;
 
 volatile bool startPressed = false;
 volatile bool stopPressed = false;
 volatile bool resetPressed = false;
 
 bool isTriggered = false;
-
-void setup(){
-    initUART(9600);
-    // initButtons();
-    // initLEDS();
-    // initDHT11();
-    // initLCD();
-    // initWaterLevel();
-    // initFanMotor();
-    // initStepperMotor();
-    initClock();
-}
-
-void loop(){
-    // mainFunctionality();
-
-    // // testing section
-    // testUART();
-    // testButtons();
-    // testLEDS();
-    // testDHT11();
-    // testLCD();
-    // testWaterLevel();
-    // testFan();
-    // testStepper();
-    testClock();
-
-}
+int lastMinute = -1;
 
 // UART (Serial Monitor)
 void initUART(unsigned long baud){
@@ -129,26 +110,57 @@ void floatToString(float num, char* str, int precision){
 // BUTTONS 
 void initButtons(){
   // Set up Digital Pin 19 (PD2) as input with pull-up resistor
-  DDRD &= ~(1 << PD2) & ~(1 << PD1) & ~(1 << PD0); // Set PD2 as input
-  PORTD |= (1 << PD2) | (1 << PD1) | (1 << PD0); // Enable pull-up resistor on PD2
+  DDRD &= ~(1 << PD3); // Set PD2 as input
+  DDRE &= ~(1 << PE4) & ~(1 << PE5);
+  PORTD |= (1 << PD3); // Enable pull-up resistor on PD2
+  PORTE |= (1 << PE4) | (1 << PE5);
 
   // Enable external interrupt
-  EIMSK |= (1 << INT2) | (1 << INT1) | (1 << INT0);  // Enable INT
-  EICRA |= (1 << ISC21) | (1 << ISC11) | (1 << ISC01); // Falling edge trigger
+  EIMSK |= (1 << INT3) | (1 << INT4) | (1 << INT5);  // Enable INT
+  EICRA |= (1 << ISC31); 
+  EICRB |= (1 << ISC41) | (1 << ISC51); // Falling edge trigger
 }
-ISR(INT2_vect) {
-  startPressed = true;
+void toggleButton(bool state, BUTTON type){
+    if (state){
+        EIMSK |= (1 << type);
+        return;
+    }
+    EIMSK &= ~(1 << type);
 }
-ISR(INT1_vect) {
-  stopPressed = true;
+
+volatile unsigned long lastStartPressTime = 0;
+volatile unsigned long lastStopPressTime = 0;
+volatile unsigned long lastResetPressTime = 0;
+const unsigned long debounceDelay = 50;
+
+ISR(INT3_vect) { // START button
+    unsigned long currentTime = millis();
+    if (currentTime - lastStartPressTime >= debounceDelay) {
+        startPressed = true;
+        lastStartPressTime = currentTime;
+    }
 }
-ISR(INT0_vect) {
-  resetPressed = true;
+
+ISR(INT4_vect) { // STOP button
+    unsigned long currentTime = millis();
+    if (currentTime - lastStopPressTime >= debounceDelay) {
+        stopPressed = true;
+        lastStopPressTime = currentTime;
+    }
 }
+
+ISR(INT5_vect) { // RESET button
+    unsigned long currentTime = millis();
+    if (currentTime - lastResetPressTime >= debounceDelay) {
+        resetPressed = true;
+        lastResetPressTime = currentTime;
+    }
+}
+
 /*
-START PIN 21
-STOP PIN 20
-RESET PIN 19
+START PIN 18
+STOP PIN 2
+RESET PIN 3
 */
 
 // LEDS
@@ -181,13 +193,11 @@ float readTemperature(){
 float readHumidity(){
     return dht11.readHumidity();
 }
-void checkForErrors(){
-    if (isnan(currentTemperature) || isnan(currentHumidity) || isnan(currentWaterLevel)){
-        currentState = DISABLED;
-        // print to Serial Monitor "Error finding values, cooler DISABLED"
-        U0putstring("Error finding Humidity and Temperature, cooler DISABLED\n");
-        return;
+bool paramHasErrors(){
+    if (isnan(currentTemperature) || isnan(currentHumidity)){
+        return true;
     }
+    return false;
 }
 /*
 DHT11 PIN 53
@@ -214,7 +224,9 @@ K GND
 
 // WATER LEVEL
 void initWaterLevel(){
-    ADCSRA |= 0b10000000;
+    DDRL |= (1 << PL4);
+    PORTL &= (1 << PL4);
+    ADCSRA |= 0b10000000; 
     ADCSRA &= 0b11011111;
     ADCSRA &= 0b11110111;
     ADCSRA &= 0b11111000;
@@ -227,6 +239,7 @@ void initWaterLevel(){
 }
 float readWaterLevel()
 {
+    PORTL |= (1 << PL4);
     ADMUX  &= 0b11100000;
     ADCSRB &= 0b11110111;
     ADCSRB |= 0b00001000;
@@ -235,8 +248,11 @@ float readWaterLevel()
     while((ADCSRA & 0x40) != 0);
     unsigned int result = ADCL;
     result |= (ADCH << 8);
+    PORTL &= ~(1 << PL4);
     return result;
 }
+
+
 /*
 + 5V
 - GND
@@ -271,6 +287,16 @@ void initStepperMotor(){
 
     stepper.setSpeed(1000);
 }
+void ventUp(){
+    stepper.step(256);
+    displayTime();
+    U0putstring("Vent UP\n");
+}
+void ventDown(){
+    stepper.step(-256);
+    displayTime();
+    U0putstring("Vent DOWN\n");
+}
 /*
 1N1 PIN 46
 1N2 PIN 48
@@ -284,9 +310,10 @@ void initClock(){
     rtc.begin();
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
 }
+DateTime now;
 void displayTime(){
+    now = rtc.now();
     char buffer[4];
-    DateTime now = rtc.now();
     floatToString(now.year(), buffer, 0);
     U0putstring(buffer);
     U0putchar('/');
@@ -307,23 +334,26 @@ void displayTime(){
     U0putchar(' ');
 }
 
-
 // PROGRAM HELPERS
 void initParameters(){
     currentTemperature = readTemperature();
     currentHumidity = readHumidity();
     currentWaterLevel = readWaterLevel();
-    thresholdWaterLevel = 0; // adjust later
+    waterLevelThreshold = 150; // adjust later
 }
-void obtainParameters(){
-    currentTemperature = readTemperature();
-    currentHumidity = readHumidity();
-    currentWaterLevel = readWaterLevel();
+void displayParams(){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Humidity: ");
+    lcd.print(currentHumidity);
+    lcd.print(" %");
+    lcd.setCursor(0,1);
+    lcd.print("Temp: ");
+    lcd.print(currentTemperature);
+    lcd.print(" C");
 }
-void displayError(){}
 void mainFunctionality(){
-    obtainParameters();
-    checkForErrors();
+    delay(50);
     switch(currentState){
         case DISABLED:
             processDISABLED();
@@ -339,17 +369,141 @@ void mainFunctionality(){
             break;
     }
 }
+
+void preStateFunctionality(){
+    if (!(PINL & (1 << PL5))){
+        ventUp();
+    }
+    if (!(PINL & (1 << PL7))){
+        ventDown();
+    }
+    if (currentState == DISABLED){
+        return;
+    }
+    now = rtc.now();
+    if (now.second() != lastMinute){
+        lastMinute = now.second();
+        currentTemperature = readTemperature();
+        currentHumidity = readHumidity();
+        currentWaterLevel = readWaterLevel();
+        displayParams();
+        
+        // Serial.print("Date: ");
+        // Serial.print(now.year());
+        // Serial.print('/');
+        // Serial.print(now.month());
+        // Serial.print('/');
+        // Serial.print(now.day());
+        // Serial.print(' ');
+        // Serial.print(now.hour());
+        // Serial.print(':');
+        // Serial.print(now.minute());
+        // Serial.print(':');
+        // Serial.println(now.second());
+        // Serial.print("now.minute(): ");
+        // Serial.println(now.minute());
+        // Serial.print("lastminute: ");
+        // Serial.println(lastMinute);
+        // delay(10);
+        // Serial.println("Params updated/minute passed\n");
+    }
+    // currentTemperature = readTemperature();
+    // currentHumidity = readHumidity();
+    // currentWaterLevel = readWaterLevel();
+    // displayParams();
+    
+}
 void processDISABLED(){
-    // pass
+    if (startPressed){
+        startPressed = false;
+        enterIDLE();
+    }
+}
+void enterDISABLED(){
+    currentState = DISABLED;
+    displayTime();
+    U0putstring("DISABLED\n\n");
+    writeLED(false, RED);
+    writeLED(true, YELLOW);
+    writeLED(false, GREEN);
+    writeLED(false, BLUE);
+    toggleButton(true, START);
+    toggleButton(false, STOP);
+    toggleButton(false, RESET);
 }
 void processIDLE(){
-    // pass
+    if (currentWaterLevel <= waterLevelThreshold){
+        enterERROR();
+    }
+    else if (currentTemperature > tempThreshold){
+        enterRUNNING();
+    }
+}
+void enterIDLE(){
+    currentState = IDLE;
+    displayTime();
+    U0putstring("IDLE\n\n");
+    toggleButton(false, START);
+    toggleButton(true, STOP);
+    toggleButton(false, RESET);
+    writeLED(false, RED);
+    writeLED(false, YELLOW);
+    writeLED(true, GREEN);
+    writeLED(false, BLUE);
+    stopFan();
 }
 void processRUNNING(){
-    // pass
+    if (currentWaterLevel <= waterLevelThreshold){
+        stopFan();
+        enterERROR();
+    }
+    else if (currentTemperature <= tempThreshold){
+        stopFan();
+        enterIDLE();
+    }
+    else if (stopPressed){
+        stopPressed = false;
+        stopFan();
+        enterDISABLED();
+    }
+}
+void enterRUNNING(){
+    currentState = RUNNING;
+    startFan();
+    displayTime();
+    U0putstring("RUNNING\n\n");
+    toggleButton(false, START);
+    toggleButton(true, STOP);
+    toggleButton(false, RESET);
+    writeLED(false, RED);
+    writeLED(false, YELLOW);
+    writeLED(false, GREEN);
+    writeLED(true, BLUE);
 }
 void processERROR(){
-    // pass
+    if (stopPressed){
+        stopPressed = false;
+        resetPressed = false;
+        enterDISABLED();
+    }
+    if (resetPressed){
+        stopPressed = false;
+        resetPressed = false;
+        enterIDLE();
+    }
+}
+void enterERROR(){
+    currentState = ERROR;
+    displayTime();
+    U0putstring("ERROR\n\n");
+    toggleButton(false, START);
+    toggleButton(true, STOP);
+    toggleButton(true, RESET);
+    writeLED(true, RED);
+    writeLED(false, YELLOW);
+    writeLED(false, GREEN);
+    writeLED(false, BLUE);
+    U0putstring("Water level is too low\n\n");
 }
 
 
@@ -361,12 +515,17 @@ void testUART(){
     }
 }
 void testButtons(){
-
+    // disableButton(START);
+    // disableButton(STOP);
+    // disableButton(RESET);
+    // enableButton(START);
+    // enableButton(STOP);
+    // enableButton(RESET);
     while(true){
         for (int i = 0; i < 10; i++){
             U0putchar('\n');
         }
-        U0putstring("STOP button: ");
+        U0putstring("START button: ");
         if (startPressed){
             U0putstring("PRESSED");
         }
@@ -374,7 +533,7 @@ void testButtons(){
             U0putstring("unpressed");
         }
         U0putchar('\n');
-        U0putstring("START button: ");
+        U0putstring("STOP button: ");
         if (stopPressed){
             U0putstring("PRESSED");
         }
@@ -400,13 +559,19 @@ void testButtons(){
 void testLEDS(){
     while(true){
         writeLED(true, RED);
+        delay(100);
         writeLED(true, YELLOW);
+        delay(100);
         writeLED(true, GREEN);
+        delay(100);
         writeLED(true, BLUE);
         delay(100);
         writeLED(false, RED);
+        delay(100);
         writeLED(false, YELLOW);
+        delay(100);
         writeLED(false, GREEN);
+        delay(100);
         writeLED(false, BLUE);
         delay(100);
     }
@@ -451,7 +616,7 @@ void testWaterLevel(){
         floatToString(readWaterLevel(), buffer, 0);
         U0putstring(buffer);
         U0putchar('\n');
-        delay(100);
+        delay(1000);
     }
 }
 void testFan(){
@@ -482,3 +647,37 @@ void testClock(){
 
 // 1 IMPLEMENT ISR FOR BUTTONS
 // 2 IMPLEMENT MAIN FUNCTIONALITY
+
+void setup(){
+    Serial.begin(9600);
+    initUART(9600);
+    initButtons();
+    initLEDS();
+    initDHT11();
+    initLCD();
+    initWaterLevel();
+    initFanMotor();
+    initStepperMotor();
+    initClock();
+    enterDISABLED();
+    initParameters();
+}
+
+void loop(){
+    // U0putstring("Hello World");
+    // Serial.println("Hello World");
+    preStateFunctionality();
+    mainFunctionality();
+
+    // // testing section
+    // testUART();
+    // testButtons();
+    // testLEDS();
+    // testDHT11();
+    // testLCD();
+    // testWaterLevel();
+    // testFan();
+    // testStepper();
+    // testClock();
+
+}
