@@ -47,7 +47,7 @@ volatile bool resetPressed = false;
 bool isTriggered = false;
 int lastMinute = -1;
 
-// UART (Serial Monitor)
+// UART (Serial Monitor) (Kevin)
 void initUART(unsigned long baud){
     unsigned long FCPU = 16000000;
     unsigned int tbaud = (FCPU / 16 / baud - 1);
