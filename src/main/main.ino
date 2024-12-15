@@ -109,10 +109,9 @@ void floatToString(float num, char* str, int precision){
 
 // BUTTONS 
 void initButtons(){
-  // Set up Digital Pin 19 (PD2) as input with pull-up resistor
-  DDRD &= ~(1 << PD3); // Set PD2 as input
+  DDRD &= ~(1 << PD3); 
   DDRE &= ~(1 << PE4) & ~(1 << PE5);
-  PORTD |= (1 << PD3); // Enable pull-up resistor on PD2
+  PORTD |= (1 << PD3); 
   PORTE |= (1 << PE4) | (1 << PE5);
 
   // Enable external interrupt
@@ -226,9 +225,10 @@ K GND
 void initWaterLevel(){
     DDRL |= (1 << PL4);
     PORTL &= (1 << PL4);
-    ADCSRA |= 0b10000000; 
+
+    ADCSRA |= 0b10000000;
     ADCSRA &= 0b11011111;
-    ADCSRA &= 0b11110111;
+    ADCSRA &= 0b11110111; 
     ADCSRA &= 0b11111000;
     ADCSRB &= 0b11110111;
     ADCSRB &= 0b11111000;
@@ -387,6 +387,8 @@ void preStateFunctionality(){
         currentHumidity = readHumidity();
         currentWaterLevel = readWaterLevel();
         displayParams();
+
+        // TESTING
         
         // Serial.print("Date: ");
         // Serial.print(now.year());
@@ -645,9 +647,6 @@ void testClock(){
     }
 }
 
-// 1 IMPLEMENT ISR FOR BUTTONS
-// 2 IMPLEMENT MAIN FUNCTIONALITY
-
 void setup(){
     // Serial.begin(9600);
     initUART(9600);
@@ -659,17 +658,17 @@ void setup(){
     initFanMotor();
     initStepperMotor();
     initClock();
+
     enterDISABLED();
     initParameters();
 }
 
 void loop(){
-    // U0putstring("Hello World");
-    // Serial.println("Hello World");
     preStateFunctionality();
     mainFunctionality();
 
-    // // testing section
+    // TESTING
+
     // testUART();
     // testButtons();
     // testLEDS();
