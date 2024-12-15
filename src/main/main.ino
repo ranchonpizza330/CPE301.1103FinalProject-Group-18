@@ -107,19 +107,20 @@ void floatToString(float num, char* str, int precision){
     str[i] = '\0';
 }
 
-// BUTTONS 
+// BUTTONS (Kevin)
 void initButtons(){
-  DDRD &= ~(1 << PD3); 
-  DDRE &= ~(1 << PE4) & ~(1 << PE5);
-  PORTD |= (1 << PD3); 
+  DDRD &= ~(1 << PD3); // Configure buttons as INPUT
+  DDRE &= ~(1 << PE4) & ~(1 << PE5); 
+  PORTD |= (1 << PD3); // Enable pull-up resistors
   PORTE |= (1 << PE4) | (1 << PE5);
 
   // Enable external interrupt
-  EIMSK |= (1 << INT3) | (1 << INT4) | (1 << INT5);  // Enable INT
-  EICRA |= (1 << ISC31); 
+  EIMSK |= (1 << INT3) | (1 << INT4) | (1 << INT5);  // Enable INT interrupt
+  EICRA |= (1 << ISC31); // Falling edge trigger
   EICRB |= (1 << ISC41) | (1 << ISC51); // Falling edge trigger
 }
 void toggleButton(bool state, BUTTON type){
+    // Toggle interrupt using EIMSK
     if (state){
         EIMSK |= (1 << type);
         return;
@@ -162,12 +163,13 @@ STOP PIN 2
 RESET PIN 3
 */
 
-// LEDS
+// LEDS (Kevin)
 void initLEDS(){
-    DDRA |= (1 << RED) | (1 << YELLOW) | (1 << GREEN) | (1 << BLUE);
-    PORTA &= ~(1 << RED) & ~(1 << YELLOW) & ~(1 << GREEN) & ~(1 << BLUE);
+    DDRA |= (1 << RED) | (1 << YELLOW) | (1 << GREEN) | (1 << BLUE); // Configure pin as OUTPUT
+    PORTA &= ~(1 << RED) & ~(1 << YELLOW) & ~(1 << GREEN) & ~(1 << BLUE); // Init set pin as LOW
 }
 void writeLED(bool state, LED color){
+    // Write HIGH or LOW to pin using enum as ID
     if (state){
         PORTA |= (1 << color);
         return;
@@ -182,7 +184,7 @@ GREEN PIN 27
 BLUE PIN 29
 */
 
-// DHT11
+// DHT11 (Kevin)
 void initDHT11(){
     dht11.begin();
 }
@@ -202,7 +204,7 @@ bool paramHasErrors(){
 DHT11 PIN 53
 */
 
-// LCD
+// LCD (Kevin)
 void initLCD(){
     lcd.begin(16, 2);
 }
@@ -221,54 +223,54 @@ A  POSITIVE WITH 330 OHM RESISTOR
 K GND
 */
 
-// WATER LEVEL
+// WATER LEVEL (Alexis)
 void initWaterLevel(){
-    DDRL |= (1 << PL4);
-    PORTL &= (1 << PL4);
+    DDRL |= (1 << PL4); // Configure pin as OUTPUT
+    PORTL &= (1 << PL4); // Init set pin to LOW
 
-    ADCSRA |= 0b10000000;
-    ADCSRA &= 0b11011111;
-    ADCSRA &= 0b11110111; 
-    ADCSRA &= 0b11111000;
-    ADCSRB &= 0b11110111;
-    ADCSRB &= 0b11111000;
-    ADMUX &= 0b01111111;
-    ADMUX |= 0b01000000;
-    ADMUX &= 0b11011111;
-    ADMUX &= 0b11100000;
+    ADCSRA |= 0b10000000; // Enable ADC
+    ADCSRA &= 0b11011111; // Disable auto trigger
+    ADCSRA &= 0b11110111; // Disable interrupt
+    ADCSRA &= 0b11111000; // Set prescaler to slow reading
+    
+    ADCSRB &= 0b11110111; // Reset channel and gain bits
+    ADCSRB &= 0b11111000; // Set to free running mode
+    
+    ADMUX &= 0b01111111; // Enable AVCC analog reference
+    ADMUX |= 0b01000000; 
+    ADMUX &= 0b11011111; // Right adjust
+    ADMUX &= 0b11100000; // Reset channel and gain bits
 }
 float readWaterLevel()
 {
     PORTL |= (1 << PL4);
-    ADMUX  &= 0b11100000;
+    ADMUX  &= 0b11100000; // Clear channel selection
     ADCSRB &= 0b11110111;
-    ADCSRB |= 0b00001000;
-    ADMUX  += 7;
-    ADCSRA |= 0x40;
-    while((ADCSRA & 0x40) != 0);
-    unsigned int result = ADCL;
+    ADCSRB |= 0b00001000; // Set for Channel 8 or higher
+    ADMUX  += 7; // Set Channel to A15
+    ADCSRA |= 0x40; // Start conversion
+    while((ADCSRA & 0x40) != 0); // Wait for conversion to finish
+    unsigned int result = ADCL; // Obtain result
     result |= (ADCH << 8);
     PORTL &= ~(1 << PL4);
     return result;
 }
-
-
 /*
 + 5V
 - GND
 S PIN A15
 */
 
-// FAN
+// FAN (Alexis)
 void initFanMotor(){
-    DDRA |= (1 << PA6);
-    PORTA &= ~(1 << PA6);
+    DDRA |= (1 << PA6); // Configure pin as OUTPUT
+    PORTA &= ~(1 << PA6); // Init set pin to LOW
 }
 void startFan(){
-    PORTA |= (1 << PA6);
+    PORTA |= (1 << PA6); // Set pin to HIGH
 }
 void stopFan(){
-    PORTA &= ~(1 << PA6);
+    PORTA &= ~(1 << PA6); // Set pin to LOW
 }
 /*
 VSS ARDUINO 5V
@@ -279,20 +281,20 @@ OUT3 MOTOR GND
 ARDUINO GND TO PSU GND
 */
 
-// VENT
+// VENT (Alexis)
 void initStepperMotor(){
     // Buttons for controlling vent direction
-    DDRL &= ~(1 << PL7) & ~(1 << PL5);
-    PORTL |= (1 << PL7) | (1 << PL5);
+    DDRL &= ~(1 << PL7) & ~(1 << PL5); // Configure pin as OUTPUT
+    PORTL |= (1 << PL7) | (1 << PL5); // Init set pins to LOW
 
     stepper.setSpeed(1000);
 }
-void ventUp(){
+void ventUp(){ // Handle moving vent 'up', prints time and vent status upon activation
     stepper.step(256);
     displayTime();
     U0putstring("Vent UP\n");
 }
-void ventDown(){
+void ventDown(){ // Handle moving vent 'down', prints time and vent status upon activation
     stepper.step(-256);
     displayTime();
     U0putstring("Vent DOWN\n");
@@ -305,7 +307,7 @@ void ventDown(){
 BUTTONS PIN 42, PIN 44
 */
 
-// CLOCK
+// CLOCK (Kevin)
 void initClock(){
     rtc.begin();
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
@@ -334,7 +336,7 @@ void displayTime(){
     U0putchar(' ');
 }
 
-// PROGRAM HELPERS
+// PROGRAM HELPERS (Kevin)
 void initParameters(){
     currentTemperature = readTemperature();
     currentHumidity = readHumidity();
@@ -352,7 +354,7 @@ void displayParams(){
     lcd.print(currentTemperature);
     lcd.print(" C");
 }
-void mainFunctionality(){
+void mainFunctionality(){ // Machine executes a particular function based on current state
     delay(50);
     switch(currentState){
         case DISABLED:
@@ -371,24 +373,24 @@ void mainFunctionality(){
 }
 
 void preStateFunctionality(){
-    if (!(PINL & (1 << PL5))){
+    if (!(PINL & (1 << PL5))){ // INPUT pins default to HIGH when buttons unpressed, therefore if vent button returns LOW, activate stepper/vent
         ventUp();
     }
     if (!(PINL & (1 << PL7))){
         ventDown();
     }
-    if (currentState == DISABLED){
+    if (currentState == DISABLED){ // All logic after this is functionality for when state machine is not DISABLED
         return;
     }
     now = rtc.now();
-    if (now.minute() != lastMinute){
+    if (now.minute() != lastMinute){ // Updates every minute, gets temperature, humidity, and water level, and displays on LCD
         lastMinute = now.minute();
         currentTemperature = readTemperature();
         currentHumidity = readHumidity();
         currentWaterLevel = readWaterLevel();
         displayParams();
 
-        // TESTING
+        // FOR TESTING
         
         // Serial.print("Date: ");
         // Serial.print(now.year());
@@ -415,6 +417,7 @@ void preStateFunctionality(){
     // displayParams();
     
 }
+// Helper functions for handling STATE
 void processDISABLED(){
     if (startPressed){
         startPressed = false;
@@ -509,7 +512,7 @@ void enterERROR(){
 }
 
 
-// TESTING
+// TESTING (ensure each component works individually)
 void testUART(){
     while(true){
         U0putstring("Hello World!\n");
@@ -678,5 +681,6 @@ void loop(){
     // testFan();
     // testStepper();
     // testClock();
-
 }
+
+// SCHEMATIC (Alexis)

@@ -1,1 +1,0 @@
-import .ZIP library module into Arduino IDE by going to Sketch -> Include Library -> Add .ZIP Library
